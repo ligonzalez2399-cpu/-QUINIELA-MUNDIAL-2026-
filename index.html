@@ -14,12 +14,37 @@
         <h1 class="site-title">Quiniela<span class="site-title-accent"> Mundial 2026</span></h1>
         <p class="site-sub">Llena tus predicciones — solo fase de grupos</p>
       </div>
-      <a href="leaderboard.html" class="nav-link">Ver posiciones →</a>
+      <div class="header-user hidden" id="header-user">
+        <span id="header-email"></span>
+        <button class="nav-link" id="logout-btn" onclick="logout()">Salir</button>
+      </div>
+      <a href="leaderboard.html" class="nav-link" id="nav-leaderboard">Ver posiciones →</a>
     </div>
   </header>
 
   <main class="container">
-    <div id="form-section">
+
+    <!-- ── LOGIN ── -->
+    <div id="login-section">
+      <div class="login-card">
+        <div class="login-icon">⚽</div>
+        <h2 class="login-title">Bienvenido a la Quiniela</h2>
+        <p class="login-sub">Ingresa tu correo para acceder o continuar tu quiniela guardada</p>
+        <div class="login-form">
+          <input type="email" id="loginEmail" class="text-input login-input"
+                 placeholder="tucorreo@gmail.com" autocomplete="email" />
+          <input type="text" id="loginName" class="text-input login-input"
+                 placeholder="Tu nombre completo" autocomplete="name" />
+          <button class="btn-primary login-btn" onclick="doLogin()">Entrar →</button>
+        </div>
+        <p id="login-error" class="error-text hidden">Por favor ingresa un correo válido y tu nombre.</p>
+        <p class="login-note">Si ya llenaste tu quiniela antes, usa el mismo correo y aparecerá tu progreso.</p>
+      </div>
+    </div>
+
+    <!-- ── QUINIELA ── -->
+    <div id="quiniela-section" class="hidden">
+
       <div class="card intro-card">
         <h2>¿Cómo funciona?</h2>
         <div class="how-grid">
@@ -29,21 +54,23 @@
         </div>
       </div>
 
-      <form id="quinielaForm">
-        <div class="card">
-          <label class="field-label" for="playerName">Tu nombre</label>
-          <input type="text" id="playerName" placeholder="Ej: Carlos Pérez" required class="text-input" />
+      <div class="card save-bar">
+        <div class="save-bar-inner">
+          <span id="save-progress">Cargando tu quiniela...</span>
+          <button class="btn-save" id="saveProgressBtn" onclick="saveProgress()">💾 Guardar progreso</button>
         </div>
+      </div>
 
+      <form id="quinielaForm">
         <div id="matches-container"></div>
-
         <div class="submit-wrap">
           <p class="submit-note" id="incomplete-note" style="display:none">
-            ⚠️ Aún tienes partidos sin completar — revisa que todos tengan resultado seleccionado y marcador.
+            ⚠️ Aún tienes partidos sin completar — revisa que todos tengan resultado seleccionado.
           </p>
           <button type="submit" class="btn-primary" id="submitBtn">
-            Enviar mi quiniela →
+            Enviar quiniela final →
           </button>
+          <p class="submit-hint">También puedes guardar el progreso y continuar después</p>
         </div>
       </form>
 
@@ -60,6 +87,7 @@
       <div id="error-msg" class="error-banner hidden">
         <p>Hubo un error al enviar. Intenta de nuevo.</p>
       </div>
+
     </div>
   </main>
 
@@ -70,18 +98,51 @@
   <script src="matches.js"></script>
   <script src="config.js"></script>
   <script>
-    const container = document.getElementById('matches-container');
+    // ══════════════════════════════════════════
+    //  SESSION — correo guardado en localStorage
+    // ══════════════════════════════════════════
+    let currentUser = null; // { email, name }
 
-    // Only group stage (no knockout)
+    function doLogin() {
+      const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+      const name  = document.getElementById('loginName').value.trim();
+      if (!email || !email.includes('@') || !name) {
+        document.getElementById('login-error').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('login-error').classList.add('hidden');
+      currentUser = { email, name };
+      localStorage.setItem('quinielaUser', JSON.stringify(currentUser));
+      showQuiniela();
+    }
+
+    function logout() {
+      localStorage.removeItem('quinielaUser');
+      currentUser = null;
+      document.getElementById('login-section').classList.remove('hidden');
+      document.getElementById('quiniela-section').classList.add('hidden');
+      document.getElementById('header-user').classList.add('hidden');
+      document.getElementById('loginEmail').value = '';
+      document.getElementById('loginName').value = '';
+    }
+
+    // Presionar Enter en el login
+    document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginName').focus(); });
+    document.getElementById('loginName').addEventListener('keydown',  e => { if (e.key === 'Enter') doLogin(); });
+
+    // ══════════════════════════════════════════
+    //  RENDER MATCHES
+    // ══════════════════════════════════════════
+    const container = document.getElementById('matches-container');
     const groupMatches = MATCHES.filter(m => m.phase === 'Fase de Grupos');
     const groups = [...new Set(groupMatches.map(m => m.group))];
 
     groups.forEach(group => {
-      const groupMatches2 = groupMatches.filter(m => m.group === group);
+      const gm = groupMatches.filter(m => m.group === group);
       const section = document.createElement('div');
       section.innerHTML = `<h3 class="phase-title">${group}</h3>`;
 
-      groupMatches2.forEach(match => {
+      gm.forEach(match => {
         const card = document.createElement('div');
         card.className = 'card match-card';
         card.id = `card-${match.id}`;
@@ -90,148 +151,208 @@
             <span class="match-date">${match.date}</span>
             <span class="match-group">${match.group || ''}</span>
           </div>
-
-          <!-- Resultado selector (local / empate / visitante) -->
           <div class="outcome-row">
-            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">
-              ${match.home}
-            </button>
-            <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">
-              Empate
-            </button>
-            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">
-              ${match.away}
-            </button>
+            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">${match.home}</button>
+            <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">Empate</button>
+            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">${match.away}</button>
             <input type="hidden" name="outcome_${match.id}" id="outcome_${match.id}" value="" />
           </div>
-
-          <!-- Marcador exacto -->
           <div class="score-row">
             <span class="score-label-team">${match.home}</span>
             <div class="score-inputs">
-              <input type="number" min="0" max="20" name="home_${match.id}" id="home_${match.id}"
-                     class="score-input" placeholder="0" />
+              <input type="number" min="0" max="20" name="home_${match.id}" id="home_${match.id}" class="score-input" placeholder="0" />
               <span class="score-sep">–</span>
-              <input type="number" min="0" max="20" name="away_${match.id}" id="away_${match.id}"
-                     class="score-input" placeholder="0" />
+              <input type="number" min="0" max="20" name="away_${match.id}" id="away_${match.id}" class="score-input" placeholder="0" />
             </div>
             <span class="score-label-team">${match.away}</span>
           </div>
-          <p class="score-hint">Marcador exacto (opcional — suma 2 pts extra si aciertas)</p>
+          <p class="score-hint">Marcador exacto · opcional pero suma 2 pts extra</p>
         `;
         section.appendChild(card);
       });
-
       container.appendChild(section);
     });
 
-    // Outcome button logic
+    // ══════════════════════════════════════════
+    //  OUTCOME BUTTON INTERACTION
+    // ══════════════════════════════════════════
     document.addEventListener('click', function(e) {
       if (!e.target.classList.contains('outcome-btn')) return;
       const matchId = e.target.dataset.match;
       const val = e.target.dataset.val;
-
-      // Update hidden input
       document.getElementById(`outcome_${matchId}`).value = val;
-
-      // Toggle active state
       document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
         btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
       });
       e.target.classList.add('active', `active-${val}`);
-
-      // Remove error highlight from card
       document.getElementById(`card-${matchId}`).classList.remove('card-error');
-
-      // Auto-set score outcome consistency
-      const homeInput = document.getElementById(`home_${matchId}`);
-      const awayInput = document.getElementById(`away_${matchId}`);
-      syncScoreFromOutcome(matchId, val, homeInput, awayInput);
+      updateProgress();
     });
 
-    // When scores change → auto-select outcome
     document.addEventListener('input', function(e) {
       const name = e.target.name || '';
       let matchId = null;
       if (name.startsWith('home_')) matchId = name.replace('home_', '');
       if (name.startsWith('away_')) matchId = name.replace('away_', '');
       if (!matchId) return;
-
       const h = parseInt(document.getElementById(`home_${matchId}`)?.value);
       const a = parseInt(document.getElementById(`away_${matchId}`)?.value);
       if (isNaN(h) || isNaN(a)) return;
-
       const derived = h > a ? 'home' : a > h ? 'away' : 'draw';
-      const outcomeInput = document.getElementById(`outcome_${matchId}`);
-
-      // Only auto-select if no outcome chosen yet, or always sync
-      outcomeInput.value = derived;
+      document.getElementById(`outcome_${matchId}`).value = derived;
       document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
         btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
         if (btn.dataset.val === derived) btn.classList.add('active', `active-${derived}`);
       });
       document.getElementById(`card-${matchId}`).classList.remove('card-error');
+      updateProgress();
     });
 
-    function syncScoreFromOutcome(matchId, val, homeInput, awayInput) {
-      // If scores are empty, set a sensible default to hint the user
-      const h = homeInput.value;
-      const a = awayInput.value;
-      if (h === '' && a === '') {
-        if (val === 'draw') { homeInput.value = ''; awayInput.value = ''; }
+    // ══════════════════════════════════════════
+    //  PROGRESS COUNTER
+    // ══════════════════════════════════════════
+    function updateProgress() {
+      const total = groupMatches.length;
+      const done  = groupMatches.filter(m => document.getElementById(`outcome_${m.id}`)?.value).length;
+      document.getElementById('save-progress').textContent = `${done} de ${total} partidos completados`;
+    }
+
+    // ══════════════════════════════════════════
+    //  SAVE / LOAD FROM APPS SCRIPT
+    // ══════════════════════════════════════════
+    function collectPredictions() {
+      const predictions = {};
+      groupMatches.forEach(match => {
+        predictions[`outcome_${match.id}`] = document.getElementById(`outcome_${match.id}`).value;
+        predictions[`home_${match.id}`]    = document.getElementById(`home_${match.id}`).value;
+        predictions[`away_${match.id}`]    = document.getElementById(`away_${match.id}`).value;
+      });
+      return predictions;
+    }
+
+    function applyPredictions(predictions) {
+      groupMatches.forEach(match => {
+        const outcome = predictions[`outcome_${match.id}`];
+        const home    = predictions[`home_${match.id}`];
+        const away    = predictions[`away_${match.id}`];
+        if (outcome) {
+          document.getElementById(`outcome_${match.id}`).value = outcome;
+          document.querySelectorAll(`.outcome-btn[data-match="${match.id}"]`).forEach(btn => {
+            btn.classList.remove('active','active-home','active-draw','active-away');
+            if (btn.dataset.val === outcome) btn.classList.add('active', `active-${outcome}`);
+          });
+        }
+        if (home !== '') document.getElementById(`home_${match.id}`).value = home;
+        if (away !== '') document.getElementById(`away_${match.id}`).value = away;
+      });
+      updateProgress();
+    }
+
+    async function loadUserData() {
+      document.getElementById('save-progress').textContent = 'Cargando tu quiniela...';
+      try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?action=getUserPredictions&email=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (data.predictions) {
+          applyPredictions(data.predictions);
+          document.getElementById('save-progress').textContent = '✓ Quiniela cargada — continúa donde la dejaste';
+        } else {
+          updateProgress();
+        }
+      } catch(e) {
+        updateProgress();
       }
     }
 
-    // Form submission
+    async function saveProgress() {
+      const btn = document.getElementById('saveProgressBtn');
+      btn.textContent = 'Guardando...';
+      btn.disabled = true;
+      const payload = {
+        action: 'submitPrediction',
+        playerName: currentUser.name,
+        playerEmail: currentUser.email,
+        predictions: collectPredictions(),
+        isDraft: true
+      };
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        btn.textContent = '✓ Guardado';
+        setTimeout(() => { btn.textContent = '💾 Guardar progreso'; btn.disabled = false; }, 2000);
+      } catch(e) {
+        btn.textContent = 'Error — intenta de nuevo';
+        btn.disabled = false;
+      }
+    }
+
+    // ══════════════════════════════════════════
+    //  SHOW QUINIELA (after login)
+    // ══════════════════════════════════════════
+    function showQuiniela() {
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('quiniela-section').classList.remove('hidden');
+      document.getElementById('header-user').classList.remove('hidden');
+      document.getElementById('header-email').textContent = currentUser.name;
+      loadUserData();
+    }
+
+    // ══════════════════════════════════════════
+    //  FINAL SUBMIT
+    // ══════════════════════════════════════════
     document.getElementById('quinielaForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-
-      // Validate all outcomes are selected
       let allValid = true;
-      groupMatches.filter(m => m.phase === 'Fase de Grupos').forEach(match => {
-        const outcome = document.getElementById(`outcome_${match.id}`).value;
-        if (!outcome) {
+      groupMatches.forEach(match => {
+        if (!document.getElementById(`outcome_${match.id}`).value) {
           allValid = false;
           document.getElementById(`card-${match.id}`).classList.add('card-error');
         }
       });
-
       if (!allValid) {
         document.getElementById('incomplete-note').style.display = 'block';
         document.querySelector('.card-error').scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
-
       document.getElementById('incomplete-note').style.display = 'none';
-
       const btn = document.getElementById('submitBtn');
       btn.textContent = 'Enviando...';
       btn.disabled = true;
-
-      const playerName = document.getElementById('playerName').value.trim();
-      const predictions = {};
-
-      MATCHES.filter(m => m.phase === 'Fase de Grupos').forEach(match => {
-        predictions[`outcome_${match.id}`] = document.getElementById(`outcome_${match.id}`).value;
-        predictions[`home_${match.id}`]    = document.getElementById(`home_${match.id}`).value;
-        predictions[`away_${match.id}`]    = document.getElementById(`away_${match.id}`).value;
-      });
-
-      const payload = { action: 'submitPrediction', playerName, predictions };
-
+      const payload = {
+        action: 'submitPrediction',
+        playerName: currentUser.name,
+        playerEmail: currentUser.email,
+        predictions: collectPredictions(),
+        isDraft: false
+      };
       try {
         await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
+          method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         document.getElementById('quinielaForm').classList.add('hidden');
         document.getElementById('success-msg').classList.remove('hidden');
-      } catch (err) {
+      } catch(err) {
         document.getElementById('error-msg').classList.remove('hidden');
-        btn.textContent = 'Enviar mi quiniela →';
+        btn.textContent = 'Enviar quiniela final →';
         btn.disabled = false;
+      }
+    });
+
+    // ══════════════════════════════════════════
+    //  AUTO-LOGIN si ya había sesión guardada
+    // ══════════════════════════════════════════
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('quinielaUser');
+      if (saved) {
+        try {
+          currentUser = JSON.parse(saved);
+          showQuiniela();
+        } catch(e) { localStorage.removeItem('quinielaUser'); }
       }
     });
   </script>
