@@ -270,6 +270,61 @@ body {
   cursor: pointer; font-size: 12px; text-decoration: underline;
 }
 
+/* ── LOGIN ── */
+#login-section {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 2.5rem 2rem;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+.login-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.login-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.5; }
+.login-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 1rem; }
+.login-input { max-width: 100%; }
+.login-btn { width: 100%; justify-content: center; }
+.login-note { font-size: 12px; color: var(--muted); margin-top: 1rem; line-height: 1.5; }
+
+/* ── SAVE BAR ── */
+.save-bar { padding: 0.75rem 1.25rem; }
+.save-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+#save-progress { font-size: 13px; color: var(--muted); }
+.btn-save {
+  background: none;
+  border: 1.5px solid var(--green);
+  color: var(--green);
+  border-radius: 99px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-save:hover { background: var(--green); color: #fff; }
+.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── HEADER USER ── */
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+#header-email { font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 500; }
+
+.submit-hint { font-size: 12px; color: var(--muted); margin-top: 8px; text-align: center; }
+
 /* ── OUTCOME SELECTOR ── */
 .outcome-row {
   display: flex;
