@@ -15,10 +15,10 @@
         <p class="site-sub">Llena tus predicciones — solo fase de grupos</p>
       </div>
       <div class="header-user hidden" id="header-user">
-        <span id="header-email"></span>
-        <button class="nav-link" id="logout-btn" onclick="logout()">Salir</button>
+        <span id="header-name"></span>
+        <button class="nav-link-btn" onclick="logout()">Salir</button>
       </div>
-      <a href="leaderboard.html" class="nav-link" id="nav-leaderboard">Ver posiciones →</a>
+      <a href="leaderboard.html" class="nav-link">Ver posiciones →</a>
     </div>
   </header>
 
@@ -29,21 +29,23 @@
       <div class="login-card">
         <div class="login-icon">⚽</div>
         <h2 class="login-title">Bienvenido a la Quiniela</h2>
-        <p class="login-sub">Ingresa tu correo para acceder o continuar tu quiniela guardada</p>
+        <p class="login-sub">Ingresa tu correo y nombre para acceder o continuar tu quiniela</p>
         <div class="login-form">
-          <input type="email" id="loginEmail" class="text-input login-input"
-                 placeholder="tucorreo@gmail.com" autocomplete="email" />
-          <input type="text" id="loginName" class="text-input login-input"
-                 placeholder="Tu nombre completo" autocomplete="name" />
-          <button class="btn-primary login-btn" onclick="doLogin()">Entrar →</button>
+          <input type="email" id="loginEmail" class="text-input login-input" placeholder="tucorreo@gmail.com" autocomplete="email" />
+          <input type="text"  id="loginName"  class="text-input login-input" placeholder="Tu nombre completo" autocomplete="name" />
+          <button class="btn-primary login-btn" id="loginBtn" onclick="doLogin()">Entrar →</button>
         </div>
         <p id="login-error" class="error-text hidden">Por favor ingresa un correo válido y tu nombre.</p>
-        <p class="login-note">Si ya llenaste tu quiniela antes, usa el mismo correo y aparecerá tu progreso.</p>
+        <p class="login-note">Si ya llenaste tu quiniela antes, usa el mismo correo para ver tu progreso.</p>
       </div>
     </div>
 
     <!-- ── QUINIELA ── -->
     <div id="quiniela-section" class="hidden">
+
+      <div id="readonly-banner" class="readonly-banner hidden">
+        <span>✅ Tu quiniela ya fue enviada. Puedes verla pero no modificarla.</span>
+      </div>
 
       <div class="card intro-card">
         <h2>¿Cómo funciona?</h2>
@@ -63,13 +65,11 @@
 
       <form id="quinielaForm">
         <div id="matches-container"></div>
-        <div class="submit-wrap">
+        <div class="submit-wrap" id="submit-wrap">
           <p class="submit-note" id="incomplete-note" style="display:none">
             ⚠️ Aún tienes partidos sin completar — revisa que todos tengan resultado seleccionado.
           </p>
-          <button type="submit" class="btn-primary" id="submitBtn">
-            Enviar quiniela final →
-          </button>
+          <button type="submit" class="btn-primary" id="submitBtn">Enviar quiniela final →</button>
           <p class="submit-hint">También puedes guardar el progreso y continuar después</p>
         </div>
       </form>
@@ -85,10 +85,10 @@
       </div>
 
       <div id="error-msg" class="error-banner hidden">
-        <p>Hubo un error al enviar. Intenta de nuevo.</p>
+        <p>Hubo un error. Intenta de nuevo.</p>
       </div>
-
     </div>
+
   </main>
 
   <footer class="site-footer">
@@ -98,11 +98,16 @@
   <script src="matches.js"></script>
   <script src="config.js"></script>
   <script>
-    // ══════════════════════════════════════════
-    //  SESSION — correo guardado en localStorage
-    // ══════════════════════════════════════════
-    let currentUser = null; // { email, name }
 
+    // ─────────────────────────────────────────
+    //  ESTADO GLOBAL
+    // ─────────────────────────────────────────
+    let currentUser  = null;   // { email, name }
+    let isReadOnly   = false;  // true si ya envió la quiniela final
+
+    // ─────────────────────────────────────────
+    //  LOGIN
+    // ─────────────────────────────────────────
     function doLogin() {
       const email = document.getElementById('loginEmail').value.trim().toLowerCase();
       const name  = document.getElementById('loginName').value.trim();
@@ -111,6 +116,10 @@
         return;
       }
       document.getElementById('login-error').classList.add('hidden');
+      const btn = document.getElementById('loginBtn');
+      btn.textContent = 'Cargando...';
+      btn.disabled = true;
+
       currentUser = { email, name };
       localStorage.setItem('quinielaUser', JSON.stringify(currentUser));
       showQuiniela();
@@ -119,29 +128,30 @@
     function logout() {
       localStorage.removeItem('quinielaUser');
       currentUser = null;
+      isReadOnly  = false;
       document.getElementById('login-section').classList.remove('hidden');
       document.getElementById('quiniela-section').classList.add('hidden');
       document.getElementById('header-user').classList.add('hidden');
       document.getElementById('loginEmail').value = '';
-      document.getElementById('loginName').value = '';
+      document.getElementById('loginName').value  = '';
+      document.getElementById('loginBtn').textContent = 'Entrar →';
+      document.getElementById('loginBtn').disabled = false;
     }
 
-    // Presionar Enter en el login
     document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginName').focus(); });
     document.getElementById('loginName').addEventListener('keydown',  e => { if (e.key === 'Enter') doLogin(); });
 
-    // ══════════════════════════════════════════
-    //  RENDER MATCHES
-    // ══════════════════════════════════════════
-    const container = document.getElementById('matches-container');
+    // ─────────────────────────────────────────
+    //  RENDER PARTIDOS
+    // ─────────────────────────────────────────
+    const container   = document.getElementById('matches-container');
     const groupMatches = MATCHES.filter(m => m.phase === 'Fase de Grupos');
-    const groups = [...new Set(groupMatches.map(m => m.group))];
+    const groups      = [...new Set(groupMatches.map(m => m.group))];
 
     groups.forEach(group => {
       const gm = groupMatches.filter(m => m.group === group);
       const section = document.createElement('div');
       section.innerHTML = `<h3 class="phase-title">${group}</h3>`;
-
       gm.forEach(match => {
         const card = document.createElement('div');
         card.className = 'card match-card';
@@ -149,20 +159,20 @@
         card.innerHTML = `
           <div class="match-meta">
             <span class="match-date">${match.date}</span>
-            <span class="match-group">${match.group || ''}</span>
+            <span class="match-group">${match.group}</span>
           </div>
           <div class="outcome-row">
             <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">${match.home}</button>
             <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">Empate</button>
             <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">${match.away}</button>
-            <input type="hidden" name="outcome_${match.id}" id="outcome_${match.id}" value="" />
+            <input type="hidden" id="outcome_${match.id}" value="" />
           </div>
           <div class="score-row">
             <span class="score-label-team">${match.home}</span>
             <div class="score-inputs">
-              <input type="number" min="0" max="20" name="home_${match.id}" id="home_${match.id}" class="score-input" placeholder="0" />
+              <input type="number" min="0" max="20" id="home_${match.id}" class="score-input" placeholder="0" />
               <span class="score-sep">–</span>
-              <input type="number" min="0" max="20" name="away_${match.id}" id="away_${match.id}" class="score-input" placeholder="0" />
+              <input type="number" min="0" max="20" id="away_${match.id}" class="score-input" placeholder="0" />
             </div>
             <span class="score-label-team">${match.away}</span>
           </div>
@@ -173,77 +183,93 @@
       container.appendChild(section);
     });
 
-    // ══════════════════════════════════════════
-    //  OUTCOME BUTTON INTERACTION
-    // ══════════════════════════════════════════
+    // ─────────────────────────────────────────
+    //  INTERACCIÓN BOTONES RESULTADO
+    // ─────────────────────────────────────────
     document.addEventListener('click', function(e) {
-      if (!e.target.classList.contains('outcome-btn')) return;
+      if (!e.target.classList.contains('outcome-btn') || isReadOnly) return;
       const matchId = e.target.dataset.match;
-      const val = e.target.dataset.val;
-      document.getElementById(`outcome_${matchId}`).value = val;
-      document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
-        btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
-      });
-      e.target.classList.add('active', `active-${val}`);
+      const val     = e.target.dataset.val;
+      setOutcome(matchId, val);
       document.getElementById(`card-${matchId}`).classList.remove('card-error');
       updateProgress();
     });
 
     document.addEventListener('input', function(e) {
-      const name = e.target.name || '';
+      if (isReadOnly) return;
+      const id = e.target.id || '';
       let matchId = null;
-      if (name.startsWith('home_')) matchId = name.replace('home_', '');
-      if (name.startsWith('away_')) matchId = name.replace('away_', '');
+      if (id.startsWith('home_')) matchId = id.replace('home_', '');
+      if (id.startsWith('away_')) matchId = id.replace('away_', '');
       if (!matchId) return;
       const h = parseInt(document.getElementById(`home_${matchId}`)?.value);
       const a = parseInt(document.getElementById(`away_${matchId}`)?.value);
       if (isNaN(h) || isNaN(a)) return;
       const derived = h > a ? 'home' : a > h ? 'away' : 'draw';
-      document.getElementById(`outcome_${matchId}`).value = derived;
-      document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
-        btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
-        if (btn.dataset.val === derived) btn.classList.add('active', `active-${derived}`);
-      });
+      setOutcome(matchId, derived);
       document.getElementById(`card-${matchId}`).classList.remove('card-error');
       updateProgress();
     });
 
-    // ══════════════════════════════════════════
-    //  PROGRESS COUNTER
-    // ══════════════════════════════════════════
+    function setOutcome(matchId, val) {
+      document.getElementById(`outcome_${matchId}`).value = val;
+      document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
+        btn.classList.remove('active','active-home','active-draw','active-away');
+        if (btn.dataset.val === val) btn.classList.add('active', `active-${val}`);
+      });
+    }
+
+    // ─────────────────────────────────────────
+    //  MODO SOLO LECTURA
+    // ─────────────────────────────────────────
+    function enableReadOnly() {
+      isReadOnly = true;
+      document.getElementById('readonly-banner').classList.remove('hidden');
+      document.getElementById('submit-wrap').classList.add('hidden');
+      document.getElementById('saveProgressBtn').classList.add('hidden');
+      // Deshabilitar todos los inputs y botones del formulario
+      document.querySelectorAll('.outcome-btn, .score-input').forEach(el => {
+        el.disabled = true;
+        el.style.cursor = 'default';
+      });
+      document.querySelectorAll('.outcome-btn.active').forEach(btn => {
+        btn.style.opacity = '1';
+      });
+      document.querySelectorAll('.outcome-btn:not(.active)').forEach(btn => {
+        btn.style.opacity = '0.3';
+      });
+    }
+
+    // ─────────────────────────────────────────
+    //  PROGRESO
+    // ─────────────────────────────────────────
     function updateProgress() {
       const total = groupMatches.length;
       const done  = groupMatches.filter(m => document.getElementById(`outcome_${m.id}`)?.value).length;
       document.getElementById('save-progress').textContent = `${done} de ${total} partidos completados`;
     }
 
-    // ══════════════════════════════════════════
-    //  SAVE / LOAD FROM APPS SCRIPT
-    // ══════════════════════════════════════════
+    // ─────────────────────────────────────────
+    //  CARGAR / GUARDAR DATOS
+    // ─────────────────────────────────────────
     function collectPredictions() {
-      const predictions = {};
-      groupMatches.forEach(match => {
-        predictions[`outcome_${match.id}`] = document.getElementById(`outcome_${match.id}`).value;
-        predictions[`home_${match.id}`]    = document.getElementById(`home_${match.id}`).value;
-        predictions[`away_${match.id}`]    = document.getElementById(`away_${match.id}`).value;
+      const p = {};
+      groupMatches.forEach(m => {
+        p[`outcome_${m.id}`] = document.getElementById(`outcome_${m.id}`).value;
+        p[`home_${m.id}`]    = document.getElementById(`home_${m.id}`).value;
+        p[`away_${m.id}`]    = document.getElementById(`away_${m.id}`).value;
       });
-      return predictions;
+      return p;
     }
 
     function applyPredictions(predictions) {
-      groupMatches.forEach(match => {
-        const outcome = predictions[`outcome_${match.id}`];
-        const home    = predictions[`home_${match.id}`];
-        const away    = predictions[`away_${match.id}`];
-        if (outcome) {
-          document.getElementById(`outcome_${match.id}`).value = outcome;
-          document.querySelectorAll(`.outcome-btn[data-match="${match.id}"]`).forEach(btn => {
-            btn.classList.remove('active','active-home','active-draw','active-away');
-            if (btn.dataset.val === outcome) btn.classList.add('active', `active-${outcome}`);
-          });
-        }
-        if (home !== '') document.getElementById(`home_${match.id}`).value = home;
-        if (away !== '') document.getElementById(`away_${match.id}`).value = away;
+      groupMatches.forEach(m => {
+        const outcome = predictions[`outcome_${m.id}`];
+        const home    = predictions[`home_${m.id}`];
+        const away    = predictions[`away_${m.id}`];
+        if (outcome) setOutcome(m.id, outcome);
+        if (home !== undefined && home !== '') document.getElementById(`home_${m.id}`).value = home;
+        if (away !== undefined && away !== '') document.getElementById(`away_${m.id}`).value = away;
       });
       updateProgress();
     }
@@ -251,16 +277,26 @@
     async function loadUserData() {
       document.getElementById('save-progress').textContent = 'Cargando tu quiniela...';
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?action=getUserPredictions&email=${encodeURIComponent(currentUser.email)}`);
+        const url = `${APPS_SCRIPT_URL}?action=getUserPredictions&email=${encodeURIComponent(currentUser.email)}`;
+        const res  = await fetch(url);
         const data = await res.json();
+
         if (data.predictions) {
           applyPredictions(data.predictions);
-          document.getElementById('save-progress').textContent = '✓ Quiniela cargada — continúa donde la dejaste';
+          if (data.estado === 'enviado') {
+            enableReadOnly();
+            document.getElementById('save-progress').textContent = '✅ Quiniela completada y enviada';
+          } else {
+            document.getElementById('save-progress').textContent = `Bienvenido de nuevo, ${currentUser.name} — continúa donde lo dejaste`;
+            setTimeout(updateProgress, 300);
+          }
         } else {
           updateProgress();
+          document.getElementById('save-progress').textContent = `Hola ${currentUser.name}, ¡empieza a llenar tu quiniela!`;
         }
       } catch(e) {
         updateProgress();
+        document.getElementById('save-progress').textContent = 'Sin conexión — tus cambios se guardarán al enviar';
       }
     }
 
@@ -269,11 +305,11 @@
       btn.textContent = 'Guardando...';
       btn.disabled = true;
       const payload = {
-        action: 'submitPrediction',
-        playerName: currentUser.name,
+        action:      'submitPrediction',
         playerEmail: currentUser.email,
+        playerName:  currentUser.name,
         predictions: collectPredictions(),
-        isDraft: true
+        isDraft:     true
       };
       try {
         await fetch(APPS_SCRIPT_URL, {
@@ -282,27 +318,16 @@
           body: JSON.stringify(payload)
         });
         btn.textContent = '✓ Guardado';
-        setTimeout(() => { btn.textContent = '💾 Guardar progreso'; btn.disabled = false; }, 2000);
+        setTimeout(() => { btn.textContent = '💾 Guardar progreso'; btn.disabled = false; }, 2500);
       } catch(e) {
         btn.textContent = 'Error — intenta de nuevo';
         btn.disabled = false;
       }
     }
 
-    // ══════════════════════════════════════════
-    //  SHOW QUINIELA (after login)
-    // ══════════════════════════════════════════
-    function showQuiniela() {
-      document.getElementById('login-section').classList.add('hidden');
-      document.getElementById('quiniela-section').classList.remove('hidden');
-      document.getElementById('header-user').classList.remove('hidden');
-      document.getElementById('header-email').textContent = currentUser.name;
-      loadUserData();
-    }
-
-    // ══════════════════════════════════════════
-    //  FINAL SUBMIT
-    // ══════════════════════════════════════════
+    // ─────────────────────────────────────────
+    //  ENVÍO FINAL
+    // ─────────────────────────────────────────
     document.getElementById('quinielaForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       let allValid = true;
@@ -322,11 +347,11 @@
       btn.textContent = 'Enviando...';
       btn.disabled = true;
       const payload = {
-        action: 'submitPrediction',
-        playerName: currentUser.name,
+        action:      'submitPrediction',
         playerEmail: currentUser.email,
+        playerName:  currentUser.name,
         predictions: collectPredictions(),
-        isDraft: false
+        isDraft:     false
       };
       try {
         await fetch(APPS_SCRIPT_URL, {
@@ -336,6 +361,7 @@
         });
         document.getElementById('quinielaForm').classList.add('hidden');
         document.getElementById('success-msg').classList.remove('hidden');
+        document.getElementById('save-progress').textContent = '✅ Quiniela enviada';
       } catch(err) {
         document.getElementById('error-msg').classList.remove('hidden');
         btn.textContent = 'Enviar quiniela final →';
@@ -343,18 +369,32 @@
       }
     });
 
-    // ══════════════════════════════════════════
-    //  AUTO-LOGIN si ya había sesión guardada
-    // ══════════════════════════════════════════
+    // ─────────────────────────────────────────
+    //  MOSTRAR QUINIELA
+    // ─────────────────────────────────────────
+    function showQuiniela() {
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('quiniela-section').classList.remove('hidden');
+      document.getElementById('header-user').classList.remove('hidden');
+      document.getElementById('header-name').textContent = currentUser.name;
+      loadUserData();
+    }
+
+    // ─────────────────────────────────────────
+    //  AUTO-LOGIN si hay sesión guardada
+    // ─────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
       const saved = localStorage.getItem('quinielaUser');
       if (saved) {
         try {
           currentUser = JSON.parse(saved);
           showQuiniela();
-        } catch(e) { localStorage.removeItem('quinielaUser'); }
+        } catch(e) {
+          localStorage.removeItem('quinielaUser');
+        }
       }
     });
+
   </script>
 </body>
 </html>
