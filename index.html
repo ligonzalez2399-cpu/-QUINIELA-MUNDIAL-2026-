@@ -47,6 +47,23 @@
         <span>✅ Tu quiniela ya fue enviada. Puedes verla pero no modificarla.</span>
       </div>
 
+      <!-- ── SORT BAR ── -->
+      <div class="sort-bar" id="sort-bar">
+        <span class="sort-label">Ordenar por</span>
+        <div class="sort-dropdown-wrap">
+          <button class="sort-dropdown-btn" id="sortBtn" onclick="toggleSortMenu()">
+            <span id="sortBtnLabel">Grupo (A, B, C…)</span>
+            <span class="sort-arrow" id="sortArrow">▾</span>
+          </button>
+          <div class="sort-menu hidden" id="sortMenu">
+            <button class="sort-option active" data-sort="group"    onclick="applySort('group')">Por grupo (A, B, C…)</button>
+            <button class="sort-option"         data-sort="date"     onclick="applySort('date')">Por fecha (más próximo primero)</button>
+            <button class="sort-option"         data-sort="pending"  onclick="applySort('pending')">Por seleccionar (pendientes primero)</button>
+            <button class="sort-option"         data-sort="complete" onclick="applySort('complete')">Por completar (ya llenados primero)</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card intro-card">
         <h2>¿Cómo funciona?</h2>
         <div class="how-grid">
@@ -144,44 +161,116 @@
     // ─────────────────────────────────────────
     //  RENDER PARTIDOS
     // ─────────────────────────────────────────
-    const container   = document.getElementById('matches-container');
+    const container    = document.getElementById('matches-container');
     const groupMatches = MATCHES.filter(m => m.phase === 'Fase de Grupos');
-    const groups      = [...new Set(groupMatches.map(m => m.group))];
 
-    groups.forEach(group => {
-      const gm = groupMatches.filter(m => m.group === group);
-      const section = document.createElement('div');
-      section.innerHTML = `<h3 class="phase-title">${group}</h3>`;
-      gm.forEach(match => {
-        const card = document.createElement('div');
-        card.className = 'card match-card';
-        card.id = `card-${match.id}`;
-        card.innerHTML = `
-          <div class="match-meta">
-            <span class="match-date">${match.date}</span>
-            <span class="match-group">${match.group}</span>
+    // Build date order map for sorting (parse "11 Jun" → comparable number)
+    const MONTH = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12,
+                    Ene:1,Feb:2,Mar:3,Abr:4,May:5,Jun:6,Jul:7,Ago:8,Sep:9,Oct:10,Nov:11,Dic:12 };
+    function dateNum(dateStr) {
+      const [d, m] = dateStr.split(' ');
+      return (MONTH[m] || 6) * 100 + parseInt(d);
+    }
+
+    // Create all cards once and store them — reuse on sort
+    function makeCard(match) {
+      const card = document.createElement('div');
+      card.className = 'card match-card';
+      card.id = `card-${match.id}`;
+      card.dataset.group = match.group;
+      card.dataset.date  = dateNum(match.date);
+      card.innerHTML = `
+        <div class="match-meta">
+          <span class="match-date">${match.date}</span>
+          <span class="match-group">${match.group}</span>
+        </div>
+        <div class="outcome-row">
+          <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">${match.home}</button>
+          <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">Empate</button>
+          <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">${match.away}</button>
+          <input type="hidden" id="outcome_${match.id}" value="" />
+        </div>
+        <div class="score-row">
+          <span class="score-label-team">${match.home}</span>
+          <div class="score-inputs">
+            <input type="number" min="0" max="20" id="home_${match.id}" class="score-input" placeholder="0" />
+            <span class="score-sep">–</span>
+            <input type="number" min="0" max="20" id="away_${match.id}" class="score-input" placeholder="0" />
           </div>
-          <div class="outcome-row">
-            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">${match.home}</button>
-            <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">Empate</button>
-            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">${match.away}</button>
-            <input type="hidden" id="outcome_${match.id}" value="" />
-          </div>
-          <div class="score-row">
-            <span class="score-label-team">${match.home}</span>
-            <div class="score-inputs">
-              <input type="number" min="0" max="20" id="home_${match.id}" class="score-input" placeholder="0" />
-              <span class="score-sep">–</span>
-              <input type="number" min="0" max="20" id="away_${match.id}" class="score-input" placeholder="0" />
-            </div>
-            <span class="score-label-team">${match.away}</span>
-          </div>
-          <p class="score-hint">Marcador exacto · opcional pero suma 2 pts extra</p>
-        `;
-        section.appendChild(card);
+          <span class="score-label-team">${match.away}</span>
+        </div>
+        <p class="score-hint">Marcador exacto · opcional pero suma 2 pts extra</p>
+      `;
+      return card;
+    }
+
+    // Build all cards once
+    groupMatches.forEach(m => makeCard(m)); // warm up IDs
+
+    // ── SORT & RENDER ──
+    let currentSort = 'group';
+
+    function renderMatches(sortBy) {
+      currentSort = sortBy;
+      container.innerHTML = '';
+
+      let sorted = [...groupMatches];
+
+      if (sortBy === 'date') {
+        sorted.sort((a, b) => dateNum(a.date) - dateNum(b.date));
+        renderFlat(sorted, m => m.date);
+      } else if (sortBy === 'pending') {
+        sorted.sort((a, b) => {
+          const aDone = !!document.getElementById(`outcome_${a.id}`)?.value;
+          const bDone = !!document.getElementById(`outcome_${b.id}`)?.value;
+          return aDone - bDone; // pending (false=0) first
+        });
+        renderFlat(sorted, () => null);
+      } else if (sortBy === 'complete') {
+        sorted.sort((a, b) => {
+          const aDone = !!document.getElementById(`outcome_${a.id}`)?.value;
+          const bDone = !!document.getElementById(`outcome_${b.id}`)?.value;
+          return bDone - aDone; // complete (true=1) first
+        });
+        renderFlat(sorted, () => null);
+      } else {
+        // Default: by group
+        const groups = [...new Set(groupMatches.map(m => m.group))];
+        groups.forEach(group => {
+          const header = document.createElement('h3');
+          header.className = 'phase-title';
+          header.textContent = group;
+          container.appendChild(header);
+          groupMatches.filter(m => m.group === group).forEach(match => {
+            container.appendChild(getOrMakeCard(match));
+          });
+        });
+      }
+    }
+
+    // Flat render with optional section headers
+    function renderFlat(matches, headerFn) {
+      let lastHeader = null;
+      matches.forEach(match => {
+        const h = headerFn(match);
+        if (h && h !== lastHeader) {
+          const header = document.createElement('h3');
+          header.className = 'phase-title';
+          header.textContent = h;
+          container.appendChild(header);
+          lastHeader = h;
+        }
+        container.appendChild(getOrMakeCard(match));
       });
-      container.appendChild(section);
-    });
+    }
+
+    // Get existing card from DOM or build new one
+    function getOrMakeCard(match) {
+      return document.getElementById(`card-${match.id}`) || makeCard(match);
+    }
+
+    // Initial render
+    renderMatches('group');
 
     // ─────────────────────────────────────────
     //  INTERACCIÓN BOTONES RESULTADO
@@ -247,6 +336,10 @@
       const total = groupMatches.length;
       const done  = groupMatches.filter(m => document.getElementById(`outcome_${m.id}`)?.value).length;
       document.getElementById('save-progress').textContent = `${done} de ${total} partidos completados`;
+      // Re-sort live if in pending/complete mode so the list updates as user fills
+      if (currentSort === 'pending' || currentSort === 'complete') {
+        renderMatches(currentSort);
+      }
     }
 
     // ─────────────────────────────────────────
@@ -379,6 +472,45 @@
       document.getElementById('header-name').textContent = currentUser.name;
       loadUserData();
     }
+
+    // ─────────────────────────────────────────
+    //  SORT DROPDOWN
+    // ─────────────────────────────────────────
+    const SORT_LABELS = {
+      group:    'Por grupo (A, B, C…)',
+      date:     'Por fecha (más próximo primero)',
+      pending:  'Por seleccionar (pendientes primero)',
+      complete: 'Por completar (ya llenados primero)'
+    };
+
+    function toggleSortMenu() {
+      const menu = document.getElementById('sortMenu');
+      const arrow = document.getElementById('sortArrow');
+      const isOpen = !menu.classList.contains('hidden');
+      menu.classList.toggle('hidden');
+      arrow.textContent = isOpen ? '▾' : '▴';
+    }
+
+    function applySort(sortBy) {
+      // Update label and active state
+      document.getElementById('sortBtnLabel').textContent = SORT_LABELS[sortBy];
+      document.querySelectorAll('.sort-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sort === sortBy);
+      });
+      // Close menu
+      document.getElementById('sortMenu').classList.add('hidden');
+      document.getElementById('sortArrow').textContent = '▾';
+      // Re-render preserving current input values
+      renderMatches(sortBy);
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#sort-bar')) {
+        document.getElementById('sortMenu')?.classList.add('hidden');
+        if (document.getElementById('sortArrow')) document.getElementById('sortArrow').textContent = '▾';
+      }
+    });
 
     // ─────────────────────────────────────────
     //  AUTO-LOGIN si hay sesión guardada
