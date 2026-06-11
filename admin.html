@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Quiniela Mundial 2026</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header admin-header">
+    <div class="header-inner">
+      <div class="header-flag">🔧</div>
+      <div>
+        <h1 class="site-title">Panel de <span class="site-title-accent">Administrador</span></h1>
+        <p class="site-sub">Ingresa los resultados reales para calcular los puntajes</p>
+      </div>
+      <a href="leaderboard.html" class="nav-link">Ver posiciones →</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card" id="auth-card">
+      <h2>Acceso</h2>
+      <p class="field-label">Contraseña de administrador</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="adminPass" class="text-input" placeholder="••••••••" style="max-width:260px" />
+        <button class="btn-primary" onclick="checkPassword()">Entrar</button>
+      </div>
+      <p id="auth-error" class="error-text hidden">Contraseña incorrecta</p>
+    </div>
+
+    <div id="admin-content" class="hidden">
+      <div class="card" style="margin-bottom:1.5rem">
+        <p style="font-size:14px;color:var(--text-muted)">Ingresa el resultado real de cada partido jugado. Los puntajes se recalcularán automáticamente al guardar.</p>
+      </div>
+
+      <form id="resultsForm">
+        <div id="admin-matches-container"></div>
+        <div class="submit-wrap">
+          <button type="submit" class="btn-primary" id="saveBtn">Guardar resultados →</button>
+        </div>
+      </form>
+
+      <div id="save-success" class="success-banner hidden">
+        <div class="success-inner">
+          <span class="success-icon">✓</span>
+          <div>
+            <p class="success-title">Resultados guardados</p>
+            <p class="success-sub">Los puntajes han sido actualizados en Google Sheets</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="save-error" class="error-banner hidden">
+        <p>Error al guardar. Revisa que el Apps Script URL esté correcto en config.js</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="matches.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const ADMIN_PASSWORD = 'mundial2026'; // Cambia esta contraseña
+
+    function checkPassword() {
+      const pass = document.getElementById('adminPass').value;
+      if (pass === ADMIN_PASSWORD) {
+        document.getElementById('auth-card').classList.add('hidden');
+        document.getElementById('admin-content').classList.remove('hidden');
+        renderAdminMatches();
+        loadExistingResults();
+      } else {
+        document.getElementById('auth-error').classList.remove('hidden');
+      }
+    }
+
+    document.getElementById('adminPass').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') checkPassword();
+    });
+
+    function renderAdminMatches() {
+      const container = document.getElementById('admin-matches-container');
+      const phases = [...new Set(MATCHES.map(m => m.phase))];
+
+      phases.forEach(phase => {
+        const phaseMatches = MATCHES.filter(m => m.phase === phase);
+        const section = document.createElement('div');
+        section.innerHTML = `<h3 class="phase-title">${phase}</h3>`;
+
+        phaseMatches.forEach(match => {
+          section.innerHTML += `
+            <div class="card match-card">
+              <div class="match-meta">
+                <span class="match-date">${match.date}</span>
+                <span class="match-group">${match.group || ''}</span>
+              </div>
+              <div class="match-row">
+                <span class="team team-home">${match.home}</span>
+                <div class="score-inputs">
+                  <input type="number" min="0" max="20" name="result_home_${match.id}" class="score-input admin-input" placeholder="–" />
+                  <span class="score-sep">–</span>
+                  <input type="number" min="0" max="20" name="result_away_${match.id}" class="score-input admin-input" placeholder="–" />
+                </div>
+                <span class="team team-away">${match.away}</span>
+              </div>
+            </div>`;
+        });
+
+        container.appendChild(section);
+      });
+    }
+
+    async function loadExistingResults() {
+      try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?action=getResults`);
+        const data = await res.json();
+        if (data.results) {
+          Object.entries(data.results).forEach(([key, value]) => {
+            const input = document.querySelector(`[name="result_${key}"]`);
+            if (input && value !== '') input.value = value;
+          });
+        }
+      } catch (e) { /* silently fail, pre-fill is optional */ }
+    }
+
+    document.getElementById('resultsForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('saveBtn');
+      btn.textContent = 'Guardando...';
+      btn.disabled = true;
+
+      const results = {};
+      MATCHES.forEach(match => {
+        const homeVal = document.querySelector(`[name="result_home_${match.id}"]`).value;
+        const awayVal = document.querySelector(`[name="result_away_${match.id}"]`).value;
+        if (homeVal !== '' && awayVal !== '') {
+          results[`home_${match.id}`] = homeVal;
+          results[`away_${match.id}`] = awayVal;
+        }
+      });
+
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'saveResults', results })
+        });
+        document.getElementById('save-success').classList.remove('hidden');
+        document.getElementById('save-error').classList.add('hidden');
+        setTimeout(() => document.getElementById('save-success').classList.add('hidden'), 4000);
+      } catch (err) {
+        document.getElementById('save-error').classList.remove('hidden');
+      }
+
+      btn.textContent = 'Guardar resultados →';
+      btn.disabled = false;
+    });
+  </script>
+</body>
+</html>

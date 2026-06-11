@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiniela Mundial 2026</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-flag">⚽</div>
+      <div>
+        <h1 class="site-title">Quiniela<span class="site-title-accent"> Mundial 2026</span></h1>
+        <p class="site-sub">Llena tus predicciones — solo fase de grupos</p>
+      </div>
+      <a href="leaderboard.html" class="nav-link">Ver posiciones →</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="form-section">
+      <div class="card intro-card">
+        <h2>¿Cómo funciona?</h2>
+        <div class="how-grid">
+          <div class="how-item"><span class="how-num">1</span><p>Escoge quién gana (o si empata) y escribe el marcador exacto</p></div>
+          <div class="how-item"><span class="how-num">2</span><p>Marcador exacto vale <strong>3 pts</strong></p></div>
+          <div class="how-item"><span class="how-num">3</span><p>Solo el resultado (ganador/empate) vale <strong>1 pt</strong></p></div>
+        </div>
+      </div>
+
+      <form id="quinielaForm">
+        <div class="card">
+          <label class="field-label" for="playerName">Tu nombre</label>
+          <input type="text" id="playerName" placeholder="Ej: Carlos Pérez" required class="text-input" />
+        </div>
+
+        <div id="matches-container"></div>
+
+        <div class="submit-wrap">
+          <p class="submit-note" id="incomplete-note" style="display:none">
+            ⚠️ Aún tienes partidos sin completar — revisa que todos tengan resultado seleccionado y marcador.
+          </p>
+          <button type="submit" class="btn-primary" id="submitBtn">
+            Enviar mi quiniela →
+          </button>
+        </div>
+      </form>
+
+      <div id="success-msg" class="success-banner hidden">
+        <div class="success-inner">
+          <span class="success-icon">✓</span>
+          <div>
+            <p class="success-title">¡Quiniela enviada!</p>
+            <p class="success-sub">Revisa tu posición en la <a href="leaderboard.html">tabla de posiciones</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-msg" class="error-banner hidden">
+        <p>Hubo un error al enviar. Intenta de nuevo.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>Mundial 2026 · USA · México · Canadá · Solo Fase de Grupos</p>
+  </footer>
+
+  <script src="matches.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const container = document.getElementById('matches-container');
+
+    // Only group stage (no knockout)
+    const groupMatches = MATCHES.filter(m => m.phase === 'Fase de Grupos');
+    const groups = [...new Set(groupMatches.map(m => m.group))];
+
+    groups.forEach(group => {
+      const groupMatches2 = groupMatches.filter(m => m.group === group);
+      const section = document.createElement('div');
+      section.innerHTML = `<h3 class="phase-title">${group}</h3>`;
+
+      groupMatches2.forEach(match => {
+        const card = document.createElement('div');
+        card.className = 'card match-card';
+        card.id = `card-${match.id}`;
+        card.innerHTML = `
+          <div class="match-meta">
+            <span class="match-date">${match.date}</span>
+            <span class="match-group">${match.group || ''}</span>
+          </div>
+
+          <!-- Resultado selector (local / empate / visitante) -->
+          <div class="outcome-row">
+            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="home">
+              ${match.home}
+            </button>
+            <button type="button" class="outcome-btn outcome-draw" data-match="${match.id}" data-val="draw">
+              Empate
+            </button>
+            <button type="button" class="outcome-btn" data-match="${match.id}" data-val="away">
+              ${match.away}
+            </button>
+            <input type="hidden" name="outcome_${match.id}" id="outcome_${match.id}" value="" />
+          </div>
+
+          <!-- Marcador exacto -->
+          <div class="score-row">
+            <span class="score-label-team">${match.home}</span>
+            <div class="score-inputs">
+              <input type="number" min="0" max="20" name="home_${match.id}" id="home_${match.id}"
+                     class="score-input" placeholder="0" />
+              <span class="score-sep">–</span>
+              <input type="number" min="0" max="20" name="away_${match.id}" id="away_${match.id}"
+                     class="score-input" placeholder="0" />
+            </div>
+            <span class="score-label-team">${match.away}</span>
+          </div>
+          <p class="score-hint">Marcador exacto (opcional — suma 2 pts extra si aciertas)</p>
+        `;
+        section.appendChild(card);
+      });
+
+      container.appendChild(section);
+    });
+
+    // Outcome button logic
+    document.addEventListener('click', function(e) {
+      if (!e.target.classList.contains('outcome-btn')) return;
+      const matchId = e.target.dataset.match;
+      const val = e.target.dataset.val;
+
+      // Update hidden input
+      document.getElementById(`outcome_${matchId}`).value = val;
+
+      // Toggle active state
+      document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
+        btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
+      });
+      e.target.classList.add('active', `active-${val}`);
+
+      // Remove error highlight from card
+      document.getElementById(`card-${matchId}`).classList.remove('card-error');
+
+      // Auto-set score outcome consistency
+      const homeInput = document.getElementById(`home_${matchId}`);
+      const awayInput = document.getElementById(`away_${matchId}`);
+      syncScoreFromOutcome(matchId, val, homeInput, awayInput);
+    });
+
+    // When scores change → auto-select outcome
+    document.addEventListener('input', function(e) {
+      const name = e.target.name || '';
+      let matchId = null;
+      if (name.startsWith('home_')) matchId = name.replace('home_', '');
+      if (name.startsWith('away_')) matchId = name.replace('away_', '');
+      if (!matchId) return;
+
+      const h = parseInt(document.getElementById(`home_${matchId}`)?.value);
+      const a = parseInt(document.getElementById(`away_${matchId}`)?.value);
+      if (isNaN(h) || isNaN(a)) return;
+
+      const derived = h > a ? 'home' : a > h ? 'away' : 'draw';
+      const outcomeInput = document.getElementById(`outcome_${matchId}`);
+
+      // Only auto-select if no outcome chosen yet, or always sync
+      outcomeInput.value = derived;
+      document.querySelectorAll(`.outcome-btn[data-match="${matchId}"]`).forEach(btn => {
+        btn.classList.remove('active', 'active-home', 'active-draw', 'active-away');
+        if (btn.dataset.val === derived) btn.classList.add('active', `active-${derived}`);
+      });
+      document.getElementById(`card-${matchId}`).classList.remove('card-error');
+    });
+
+    function syncScoreFromOutcome(matchId, val, homeInput, awayInput) {
+      // If scores are empty, set a sensible default to hint the user
+      const h = homeInput.value;
+      const a = awayInput.value;
+      if (h === '' && a === '') {
+        if (val === 'draw') { homeInput.value = ''; awayInput.value = ''; }
+      }
+    }
+
+    // Form submission
+    document.getElementById('quinielaForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      // Validate all outcomes are selected
+      let allValid = true;
+      groupMatches.filter(m => m.phase === 'Fase de Grupos').forEach(match => {
+        const outcome = document.getElementById(`outcome_${match.id}`).value;
+        if (!outcome) {
+          allValid = false;
+          document.getElementById(`card-${match.id}`).classList.add('card-error');
+        }
+      });
+
+      if (!allValid) {
+        document.getElementById('incomplete-note').style.display = 'block';
+        document.querySelector('.card-error').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      document.getElementById('incomplete-note').style.display = 'none';
+
+      const btn = document.getElementById('submitBtn');
+      btn.textContent = 'Enviando...';
+      btn.disabled = true;
+
+      const playerName = document.getElementById('playerName').value.trim();
+      const predictions = {};
+
+      MATCHES.filter(m => m.phase === 'Fase de Grupos').forEach(match => {
+        predictions[`outcome_${match.id}`] = document.getElementById(`outcome_${match.id}`).value;
+        predictions[`home_${match.id}`]    = document.getElementById(`home_${match.id}`).value;
+        predictions[`away_${match.id}`]    = document.getElementById(`away_${match.id}`).value;
+      });
+
+      const payload = { action: 'submitPrediction', playerName, predictions };
+
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        document.getElementById('quinielaForm').classList.add('hidden');
+        document.getElementById('success-msg').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('error-msg').classList.remove('hidden');
+        btn.textContent = 'Enviar mi quiniela →';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

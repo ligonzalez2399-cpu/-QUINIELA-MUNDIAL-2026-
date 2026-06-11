@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Posiciones · Quiniela Mundial 2026</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-flag">🏆</div>
+      <div>
+        <h1 class="site-title">Tabla de<span class="site-title-accent"> Posiciones</span></h1>
+        <p class="site-sub">Se actualiza cuando el administrador ingresa resultados</p>
+      </div>
+      <a href="index.html" class="nav-link">← Llenar quiniela</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando posiciones...</p>
+    </div>
+
+    <div id="leaderboard-content" class="hidden">
+      <div class="stats-row" id="stats-row"></div>
+
+      <div class="card">
+        <table class="leaderboard-table" id="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Participante</th>
+              <th class="pts-col">Marcador exacto</th>
+              <th class="pts-col">Solo resultado</th>
+              <th class="pts-col total-col">Total</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card legend-card">
+        <h3>Sistema de puntos</h3>
+        <div class="legend-row"><span class="badge badge-gold">3 pts</span><span>Marcador exacto (ej: predijiste 2-1 y fue 2-1)</span></div>
+        <div class="legend-row"><span class="badge badge-silver">1 pt</span><span>Solo acertaste el resultado (ganador o empate), sin importar los goles</span></div>
+        <div class="legend-row"><span class="badge badge-none">0 pts</span><span>Resultado incorrecto</span></div>
+      </div>
+    </div>
+
+    <div id="empty-state" class="hidden empty-state">
+      <p>⚽ Aún no hay resultados registrados.</p>
+      <p class="empty-sub">El administrador actualizará los puntajes cuando avance el torneo.</p>
+    </div>
+
+    <div id="error-state" class="hidden error-banner">
+      <p>No se pudo cargar la tabla. Verifica que el Apps Script URL esté configurado en <code>config.js</code></p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>Última actualización: <span id="last-update">—</span> · <button class="refresh-btn" onclick="loadLeaderboard()">↻ Actualizar</button></p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script>
+    async function loadLeaderboard() {
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('leaderboard-content').classList.add('hidden');
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('error-state').classList.add('hidden');
+
+      try {
+        const res = await fetch(`${APPS_SCRIPT_URL}?action=getLeaderboard`);
+        const data = await res.json();
+
+        document.getElementById('loading').classList.add('hidden');
+
+        if (!data.players || data.players.length === 0) {
+          document.getElementById('empty-state').classList.remove('hidden');
+          return;
+        }
+
+        // Sort by total descending
+        const sorted = data.players.sort((a, b) => b.total - a.total);
+
+        // Stats row
+        const statsRow = document.getElementById('stats-row');
+        statsRow.innerHTML = `
+          <div class="stat-card"><p class="stat-num">${sorted.length}</p><p class="stat-label">Participantes</p></div>
+          <div class="stat-card"><p class="stat-num">${data.matchesPlayed || 0}</p><p class="stat-label">Partidos jugados</p></div>
+          <div class="stat-card"><p class="stat-num">${sorted[0]?.total || 0}</p><p class="stat-label">Puntaje líder</p></div>
+        `;
+
+        // Table body
+        const tbody = document.getElementById('leaderboard-body');
+        tbody.innerHTML = '';
+        sorted.forEach((player, i) => {
+          const rank = i + 1;
+          const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+          const rowClass = rank <= 3 ? `top-${rank}` : '';
+          tbody.innerHTML += `
+            <tr class="${rowClass}">
+              <td class="rank-cell">${medal}</td>
+              <td class="name-cell">${escapeHtml(player.name)}</td>
+              <td class="pts-col">${player.exactPoints}</td>
+              <td class="pts-col">${player.resultPoints}</td>
+              <td class="pts-col total-col"><strong>${player.total}</strong></td>
+            </tr>`;
+        });
+
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-VE');
+        document.getElementById('leaderboard-content').classList.remove('hidden');
+
+      } catch (err) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>
