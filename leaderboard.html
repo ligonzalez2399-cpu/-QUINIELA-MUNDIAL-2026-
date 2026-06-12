@@ -100,14 +100,35 @@
 
         function getRankDisplay(score) {
           const tier = uniqueScores.indexOf(score);
-          if (tier === 0) return '🥇';
-          if (tier === 1) return '🥈';
-          if (tier === 2) return '🥉';
+          const count = sorted.filter(p => p.total === score).length;
+          // Medalla solo si hay exactamente UNA persona en ese nivel
+          // y los niveles anteriores también tenían exactamente una persona
+          let allPrevUnique = true;
+          for (let t = 0; t < tier; t++) {
+            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) {
+              allPrevUnique = false;
+              break;
+            }
+          }
+          if (tier === 0 && count === 1) return '🥇';
+          if (tier === 1 && count === 1 && allPrevUnique) return '🥈';
+          if (tier === 2 && count === 1 && allPrevUnique) return '🥉';
           return rankMap[score];
         }
         function getRowClass(score) {
           const tier = uniqueScores.indexOf(score);
-          return tier <= 2 ? `top-${tier + 1}` : '';
+          const count = sorted.filter(p => p.total === score).length;
+          let allPrevUnique = true;
+          for (let t = 0; t < tier; t++) {
+            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) {
+              allPrevUnique = false;
+              break;
+            }
+          }
+          if (tier === 0 && count === 1) return 'top-1';
+          if (tier === 1 && count === 1 && allPrevUnique) return 'top-2';
+          if (tier === 2 && count === 1 && allPrevUnique) return 'top-3';
+          return '';
         }
 
         // Stats row
