@@ -86,6 +86,30 @@
         // Sort by total descending
         const sorted = data.players.sort((a, b) => b.total - a.total);
 
+        // ── Ranking por puntaje único ──
+        // Todos los que comparten puntaje tienen el mismo lugar.
+        // El siguiente lugar salta según cuántos hay en el grupo anterior.
+        // Ej: 4 con 3pts = lugar 1; 2 con 1pt = lugar 5; 3 con 0pts = lugar 7
+        const uniqueScores = [...new Set(sorted.map(p => p.total))].sort((a, b) => b - a);
+        const rankMap = {};
+        let pos = 1;
+        uniqueScores.forEach(score => {
+          rankMap[score] = pos;
+          pos += sorted.filter(p => p.total === score).length;
+        });
+
+        function getRankDisplay(score) {
+          const tier = uniqueScores.indexOf(score);
+          if (tier === 0) return '🥇';
+          if (tier === 1) return '🥈';
+          if (tier === 2) return '🥉';
+          return rankMap[score];
+        }
+        function getRowClass(score) {
+          const tier = uniqueScores.indexOf(score);
+          return tier <= 2 ? `top-${tier + 1}` : '';
+        }
+
         // Stats row
         const statsRow = document.getElementById('stats-row');
         statsRow.innerHTML = `
@@ -97,13 +121,10 @@
         // Table body
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = '';
-        sorted.forEach((player, i) => {
-          const rank = i + 1;
-          const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-          const rowClass = rank <= 3 ? `top-${rank}` : '';
+        sorted.forEach(player => {
           tbody.innerHTML += `
-            <tr class="${rowClass}">
-              <td class="rank-cell">${medal}</td>
+            <tr class="${getRowClass(player.total)}">
+              <td class="rank-cell">${getRankDisplay(player.total)}</td>
               <td class="name-cell">${escapeHtml(player.name)}</td>
               <td class="pts-col">${player.exactPoints}</td>
               <td class="pts-col">${player.resultPoints}</td>
