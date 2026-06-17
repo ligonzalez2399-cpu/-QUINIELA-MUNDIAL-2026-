@@ -11,10 +11,10 @@
     <div class="header-inner">
       <div class="header-flag">🏆</div>
       <div>
-        <h1 class="site-title">Tabla de<span class="site-title-accent"> Posiciones</span></h1>
-        <p class="site-sub">Se actualiza cuando el administrador ingresa resultados</p>
+        <h1 class="site-title">Tabla de <span class="site-title-accent">Posiciones</span></h1>
+        <p class="site-sub">Se actualiza con cada resultado</p>
       </div>
-      <a href="index.html" class="nav-link">← Llenar quiniela</a>
+      <a href="index.html" class="nav-link">← Mi quiniela</a>
     </div>
   </header>
 
@@ -26,9 +26,8 @@
 
     <div id="leaderboard-content" class="hidden">
       <div class="stats-row" id="stats-row"></div>
-
       <div class="card">
-        <table class="leaderboard-table" id="leaderboard-table">
+        <table class="leaderboard-table">
           <thead>
             <tr>
               <th>#</th>
@@ -41,22 +40,20 @@
           <tbody id="leaderboard-body"></tbody>
         </table>
       </div>
-
       <div class="card legend-card">
         <h3>Sistema de puntos</h3>
         <div class="legend-row"><span class="badge badge-gold">3 pts</span><span>Marcador exacto (ej: predijiste 2-1 y fue 2-1)</span></div>
-        <div class="legend-row"><span class="badge badge-silver">1 pt</span><span>Solo acertaste el resultado (ganador o empate), sin importar los goles</span></div>
+        <div class="legend-row"><span class="badge badge-silver">1 pt</span><span>Solo resultado correcto (ganador o empate)</span></div>
         <div class="legend-row"><span class="badge badge-none">0 pts</span><span>Resultado incorrecto</span></div>
       </div>
     </div>
 
     <div id="empty-state" class="hidden empty-state">
       <p>⚽ Aún no hay resultados registrados.</p>
-      <p class="empty-sub">El administrador actualizará los puntajes cuando avance el torneo.</p>
+      <p class="empty-sub">El administrador actualizará cuando avance el torneo.</p>
     </div>
-
     <div id="error-state" class="hidden error-banner">
-      <p>No se pudo cargar la tabla. Verifica que el Apps Script URL esté configurado en <code>config.js</code></p>
+      <p>No se pudo cargar la tabla. Verifica la URL en <code>config.js</code></p>
     </div>
   </main>
 
@@ -73,9 +70,8 @@
       document.getElementById('error-state').classList.add('hidden');
 
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?action=getLeaderboard`);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getLeaderboard`);
         const data = await res.json();
-
         document.getElementById('loading').classList.add('hidden');
 
         if (!data.players || data.players.length === 0) {
@@ -83,14 +79,10 @@
           return;
         }
 
-        // Sort by total descending
-        const sorted = data.players.sort((a, b) => b.total - a.total);
+        const sorted = data.players.sort((a,b) => b.total - a.total);
 
-        // ── Ranking por puntaje único ──
-        // Todos los que comparten puntaje tienen el mismo lugar.
-        // El siguiente lugar salta según cuántos hay en el grupo anterior.
-        // Ej: 4 con 3pts = lugar 1; 2 con 1pt = lugar 5; 3 con 0pts = lugar 7
-        const uniqueScores = [...new Set(sorted.map(p => p.total))].sort((a, b) => b - a);
+        // Shared-rank logic
+        const uniqueScores = [...new Set(sorted.map(p => p.total))].sort((a,b) => b-a);
         const rankMap = {};
         let pos = 1;
         uniqueScores.forEach(score => {
@@ -99,16 +91,11 @@
         });
 
         function getRankDisplay(score) {
-          const tier = uniqueScores.indexOf(score);
+          const tier  = uniqueScores.indexOf(score);
           const count = sorted.filter(p => p.total === score).length;
-          // Medalla solo si hay exactamente UNA persona en ese nivel
-          // y los niveles anteriores también tenían exactamente una persona
           let allPrevUnique = true;
           for (let t = 0; t < tier; t++) {
-            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) {
-              allPrevUnique = false;
-              break;
-            }
+            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) { allPrevUnique = false; break; }
           }
           if (tier === 0 && count === 1) return '🥇';
           if (tier === 1 && count === 1 && allPrevUnique) return '🥈';
@@ -116,14 +103,11 @@
           return rankMap[score];
         }
         function getRowClass(score) {
-          const tier = uniqueScores.indexOf(score);
+          const tier  = uniqueScores.indexOf(score);
           const count = sorted.filter(p => p.total === score).length;
           let allPrevUnique = true;
           for (let t = 0; t < tier; t++) {
-            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) {
-              allPrevUnique = false;
-              break;
-            }
+            if (sorted.filter(p => p.total === uniqueScores[t]).length > 1) { allPrevUnique = false; break; }
           }
           if (tier === 0 && count === 1) return 'top-1';
           if (tier === 1 && count === 1 && allPrevUnique) return 'top-2';
@@ -131,15 +115,12 @@
           return '';
         }
 
-        // Stats row
-        const statsRow = document.getElementById('stats-row');
-        statsRow.innerHTML = `
+        document.getElementById('stats-row').innerHTML = `
           <div class="stat-card"><p class="stat-num">${sorted.length}</p><p class="stat-label">Participantes</p></div>
           <div class="stat-card"><p class="stat-num">${data.matchesPlayed || 0}</p><p class="stat-label">Partidos jugados</p></div>
           <div class="stat-card"><p class="stat-num">${sorted[0]?.total || 0}</p><p class="stat-label">Puntaje líder</p></div>
         `;
 
-        // Table body
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = '';
         sorted.forEach(player => {
@@ -149,21 +130,20 @@
               <td class="name-cell">${escapeHtml(player.name)}</td>
               <td class="pts-col">${player.exactPoints}</td>
               <td class="pts-col">${player.resultPoints}</td>
-              <td class="pts-col total-col"><strong>${player.total}</strong></td>
+              <td class="pts-col total-col">${player.total}</td>
             </tr>`;
         });
 
         document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-VE');
         document.getElementById('leaderboard-content').classList.remove('hidden');
-
-      } catch (err) {
+      } catch(err) {
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('error-state').classList.remove('hidden');
       }
     }
 
-    function escapeHtml(str) {
-      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    function escapeHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
     loadLeaderboard();
