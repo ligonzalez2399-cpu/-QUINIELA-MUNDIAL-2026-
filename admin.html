@@ -5,6 +5,96 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin · Quiniela Mundial 2026</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ── Admin match row ── */
+    .admin-match {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .admin-match:last-child { border-bottom: none; }
+
+    .admin-team-home {
+      text-align: right;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+    .admin-team-away {
+      text-align: left;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+    .admin-score-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .admin-score-wrap .score-input {
+      width: 52px;
+      height: 44px;
+      font-size: 20px;
+    }
+    .admin-score-wrap .score-sep {
+      font-size: 20px;
+      color: var(--text-3);
+    }
+    .admin-match-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      padding: 10px 16px 0;
+    }
+    .admin-group-card {
+      background: var(--pitch-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .auth-card {
+      background: var(--pitch-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 2rem;
+      max-width: 400px;
+      margin: 3rem auto;
+    }
+    .auth-card h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 1.25rem;
+      color: var(--gold);
+    }
+    .auth-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .info-bar {
+      background: rgba(245,197,24,0.07);
+      border: 1px solid rgba(245,197,24,0.15);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 1.25rem;
+    }
+  </style>
 </head>
 <body>
   <header class="site-header admin-header">
@@ -19,19 +109,22 @@
   </header>
 
   <main class="container">
-    <div class="card" id="auth-card">
+
+    <!-- AUTH -->
+    <div class="auth-card" id="auth-card">
       <h2>Acceso</h2>
       <p class="field-label">Contraseña de administrador</p>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="password" id="adminPass" class="text-input" placeholder="••••••••" style="max-width:260px" />
+      <div class="auth-row">
+        <input type="password" id="adminPass" class="text-input" placeholder="••••••••" style="max-width:220px" />
         <button class="btn-primary" onclick="checkPassword()">Entrar</button>
       </div>
-      <p id="auth-error" class="error-text hidden">Contraseña incorrecta</p>
+      <p id="auth-error" class="error-text hidden" style="margin-top:8px">Contraseña incorrecta</p>
     </div>
 
+    <!-- ADMIN CONTENT -->
     <div id="admin-content" class="hidden">
-      <div class="card" style="margin-bottom:1.5rem">
-        <p style="font-size:14px;color:var(--text-muted)">Ingresa el resultado real de cada partido jugado. Los puntajes se recalcularán automáticamente al guardar.</p>
+      <div class="info-bar">
+        Ingresa el marcador de cada partido jugado y presiona <strong>Guardar</strong>. Los puntajes se recalculan automáticamente.
       </div>
 
       <form id="resultsForm">
@@ -46,21 +139,21 @@
           <span class="success-icon">✓</span>
           <div>
             <p class="success-title">Resultados guardados</p>
-            <p class="success-sub">Los puntajes han sido actualizados en Google Sheets</p>
+            <p class="success-sub">Los puntajes han sido actualizados</p>
           </div>
         </div>
       </div>
-
       <div id="save-error" class="error-banner hidden">
         <p>Error al guardar. Revisa que el Apps Script URL esté correcto en config.js</p>
       </div>
     </div>
+
   </main>
 
   <script src="matches.js"></script>
   <script src="config.js"></script>
   <script>
-    const ADMIN_PASSWORD = 'mundial2026'; // Cambia esta contraseña
+    const ADMIN_PASSWORD = 'mundial2026';
 
     function checkPassword() {
       const pass = document.getElementById('adminPass').value;
@@ -73,46 +166,68 @@
         document.getElementById('auth-error').classList.remove('hidden');
       }
     }
-
-    document.getElementById('adminPass').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') checkPassword();
-    });
+    document.getElementById('adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
 
     function renderAdminMatches() {
       const container = document.getElementById('admin-matches-container');
-      const phases = [...new Set(MATCHES.map(m => m.phase))];
+      const phases    = [...new Set(MATCHES.map(m => m.phase))];
 
       phases.forEach(phase => {
         const phaseMatches = MATCHES.filter(m => m.phase === phase);
-        const section = document.createElement('div');
-        section.innerHTML = `<h3 class="phase-title">${phase}</h3>`;
+        const groups = [...new Set(phaseMatches.map(m => m.group || phase))];
 
-        phaseMatches.forEach(match => {
-          section.innerHTML += `
-            <div class="card match-card">
-              <div class="match-meta">
-                <span class="match-date">${match.date}</span>
-                <span class="match-group">${match.group || ''}</span>
+        const phaseHeader = document.createElement('h3');
+        phaseHeader.className = 'phase-title';
+        phaseHeader.textContent = phase;
+        container.appendChild(phaseHeader);
+
+        groups.forEach(group => {
+          const groupMatches = phaseMatches.filter(m => (m.group || phase) === group);
+          const card = document.createElement('div');
+          card.className = 'admin-group-card';
+
+          // Group label inside card
+          const groupLabel = document.createElement('div');
+          groupLabel.style.cssText = 'padding:10px 16px 0; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--gold); font-family:"Barlow Condensed",sans-serif;';
+          groupLabel.textContent = group !== phase ? group : '';
+          if (groupLabel.textContent) card.appendChild(groupLabel);
+
+          groupMatches.forEach(match => {
+            // meta row
+            const meta = document.createElement('div');
+            meta.className = 'admin-match-meta';
+            meta.innerHTML = `<span>${match.date}</span><span>${match.group || ''}</span>`;
+            card.appendChild(meta);
+
+            // match row: home | [score] – [score] | away
+            const row = document.createElement('div');
+            row.className = 'admin-match';
+            row.innerHTML = `
+              <span class="admin-team-home">${match.home}</span>
+              <div class="admin-score-wrap">
+                <input type="number" min="0" max="20"
+                       name="result_home_${match.id}"
+                       class="score-input admin-input"
+                       placeholder="–" />
+                <span class="score-sep">–</span>
+                <input type="number" min="0" max="20"
+                       name="result_away_${match.id}"
+                       class="score-input admin-input"
+                       placeholder="–" />
               </div>
-              <div class="match-row">
-                <span class="team team-home">${match.home}</span>
-                <div class="score-inputs">
-                  <input type="number" min="0" max="20" name="result_home_${match.id}" class="score-input admin-input" placeholder="–" />
-                  <span class="score-sep">–</span>
-                  <input type="number" min="0" max="20" name="result_away_${match.id}" class="score-input admin-input" placeholder="–" />
-                </div>
-                <span class="team team-away">${match.away}</span>
-              </div>
-            </div>`;
+              <span class="admin-team-away">${match.away}</span>
+            `;
+            card.appendChild(row);
+          });
+
+          container.appendChild(card);
         });
-
-        container.appendChild(section);
       });
     }
 
     async function loadExistingResults() {
       try {
-        const res = await fetch(`${APPS_SCRIPT_URL}?action=getResults`);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getResults`);
         const data = await res.json();
         if (data.results) {
           Object.entries(data.results).forEach(([key, value]) => {
@@ -120,7 +235,7 @@
             if (input && value !== '') input.value = value;
           });
         }
-      } catch (e) { /* silently fail, pre-fill is optional */ }
+      } catch(e) {}
     }
 
     document.getElementById('resultsForm').addEventListener('submit', async function(e) {
@@ -131,25 +246,24 @@
 
       const results = {};
       MATCHES.forEach(match => {
-        const homeVal = document.querySelector(`[name="result_home_${match.id}"]`).value;
-        const awayVal = document.querySelector(`[name="result_away_${match.id}"]`).value;
-        if (homeVal !== '' && awayVal !== '') {
-          results[`home_${match.id}`] = homeVal;
-          results[`away_${match.id}`] = awayVal;
+        const h = document.querySelector(`[name="result_home_${match.id}"]`).value;
+        const a = document.querySelector(`[name="result_away_${match.id}"]`).value;
+        if (h !== '' && a !== '') {
+          results[`home_${match.id}`] = h;
+          results[`away_${match.id}`] = a;
         }
       });
 
       try {
         await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
+          method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'saveResults', results })
         });
         document.getElementById('save-success').classList.remove('hidden');
         document.getElementById('save-error').classList.add('hidden');
         setTimeout(() => document.getElementById('save-success').classList.add('hidden'), 4000);
-      } catch (err) {
+      } catch(err) {
         document.getElementById('save-error').classList.remove('hidden');
       }
 
