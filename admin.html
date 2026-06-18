@@ -6,58 +6,36 @@
   <title>Admin · Quiniela Mundial 2026</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* ── Admin match row ── */
     .admin-match {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       align-items: center;
       gap: 12px;
-      padding: 14px 16px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
     }
     .admin-match:last-child { border-bottom: none; }
-
     .admin-team-home {
       text-align: right;
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      font-size: 15px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text);
     }
     .admin-team-away {
       text-align: left;
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      font-size: 15px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text);
     }
     .admin-score-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
-    .admin-score-wrap .score-input {
-      width: 52px;
-      height: 44px;
-      font-size: 20px;
-    }
-    .admin-score-wrap .score-sep {
-      font-size: 20px;
-      color: var(--text-3);
-    }
-    .admin-match-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: var(--text-3);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-weight: 600;
+    .admin-meta {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
       padding: 10px 16px 0;
     }
     .admin-group-card {
@@ -77,22 +55,17 @@
     }
     .auth-card h2 {
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 1.3rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 1.25rem;
-      color: var(--gold);
+      font-size: 1.3rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 1.25rem; color: var(--gold);
     }
     .auth-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
     .info-bar {
       background: rgba(245,197,24,0.07);
       border: 1px solid rgba(245,197,24,0.15);
       border-radius: var(--radius);
-      padding: 12px 16px;
-      font-size: 13px;
-      color: var(--text-2);
-      margin-bottom: 1.25rem;
+      padding: 12px 16px; font-size: 13px;
+      color: var(--text-2); margin-bottom: 1.25rem;
     }
   </style>
 </head>
@@ -124,7 +97,22 @@
     <!-- ADMIN CONTENT -->
     <div id="admin-content" class="hidden">
       <div class="info-bar">
-        Ingresa el marcador de cada partido jugado y presiona <strong>Guardar</strong>. Los puntajes se recalculan automáticamente.
+        Ingresa el marcador de cada partido jugado y presiona <strong>Guardar</strong>. Los puntajes se recalculan automáticamente. Puedes cambiar el orden sin perder ningún dato.
+      </div>
+
+      <!-- SORT BAR -->
+      <div class="sort-bar" id="sort-bar">
+        <span class="sort-label">Ordenar por</span>
+        <div class="sort-dropdown-wrap">
+          <button class="sort-dropdown-btn" id="sortBtn" onclick="toggleSortMenu()">
+            <span id="sortBtnLabel">Grupo (A, B, C…)</span>
+            <span class="sort-arrow" id="sortArrow">▾</span>
+          </button>
+          <div class="sort-menu hidden" id="sortMenu">
+            <button class="sort-option active" data-sort="group" onclick="applySort('group')">Por grupo (A, B, C…)</button>
+            <button class="sort-option"        data-sort="date"  onclick="applySort('date')">Por fecha (más próximo primero)</button>
+          </div>
+        </div>
       </div>
 
       <form id="resultsForm">
@@ -160,84 +148,149 @@
       if (pass === ADMIN_PASSWORD) {
         document.getElementById('auth-card').classList.add('hidden');
         document.getElementById('admin-content').classList.remove('hidden');
-        renderAdminMatches();
+        buildAllCards();
         loadExistingResults();
+        renderMatches('group');
       } else {
         document.getElementById('auth-error').classList.remove('hidden');
       }
     }
-    document.getElementById('adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
+    document.getElementById('adminPass').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkPassword();
+    });
 
-    function renderAdminMatches() {
-      const container = document.getElementById('admin-matches-container');
-      const phases    = [...new Set(MATCHES.map(m => m.phase))];
+    // ─── BUILD CARDS ONCE, REUSE ON SORT ─────────
+    const cardMap = {}; // matchId → { wrapper, metaEl, rowEl }
 
-      phases.forEach(phase => {
-        const phaseMatches = MATCHES.filter(m => m.phase === phase);
-        const groups = [...new Set(phaseMatches.map(m => m.group || phase))];
-
-        const phaseHeader = document.createElement('h3');
-        phaseHeader.className = 'phase-title';
-        phaseHeader.textContent = phase;
-        container.appendChild(phaseHeader);
-
-        groups.forEach(group => {
-          const groupMatches = phaseMatches.filter(m => (m.group || phase) === group);
-          const card = document.createElement('div');
-          card.className = 'admin-group-card';
-
-          // Group label inside card
-          const groupLabel = document.createElement('div');
-          groupLabel.style.cssText = 'padding:10px 16px 0; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--gold); font-family:"Barlow Condensed",sans-serif;';
-          groupLabel.textContent = group !== phase ? group : '';
-          if (groupLabel.textContent) card.appendChild(groupLabel);
-
-          groupMatches.forEach(match => {
-            // meta row
-            const meta = document.createElement('div');
-            meta.className = 'admin-match-meta';
-            meta.innerHTML = `<span>${match.date}</span><span>${match.group || ''}</span>`;
-            card.appendChild(meta);
-
-            // match row: home | [score] – [score] | away
-            const row = document.createElement('div');
-            row.className = 'admin-match';
-            row.innerHTML = `
-              <span class="admin-team-home">${match.home}</span>
-              <div class="admin-score-wrap">
-                <input type="number" min="0" max="20"
-                       name="result_home_${match.id}"
-                       class="score-input admin-input"
-                       placeholder="–" />
-                <span class="score-sep">–</span>
-                <input type="number" min="0" max="20"
-                       name="result_away_${match.id}"
-                       class="score-input admin-input"
-                       placeholder="–" />
-              </div>
-              <span class="admin-team-away">${match.away}</span>
-            `;
-            card.appendChild(row);
-          });
-
-          container.appendChild(card);
-        });
-      });
+    const MONTH = {Ene:1,Feb:2,Mar:3,Abr:4,May:5,Jun:6,Jul:7,Ago:8,Sep:9,Oct:10,Nov:11,Dic:12};
+    function dateNum(d) {
+      const [day, mon] = d.split(' ');
+      return (MONTH[mon] || 6) * 100 + parseInt(day);
     }
 
+    function buildCard(match) {
+      // Wrapper holds meta + match row together
+      const wrapper = document.createElement('div');
+      wrapper.dataset.matchId = match.id;
+      wrapper.dataset.group   = match.group || '';
+      wrapper.dataset.date    = dateNum(match.date);
+
+      const meta = document.createElement('div');
+      meta.className = 'admin-meta';
+      meta.innerHTML = `<span>${match.date}</span><span>${match.group || ''}</span>`;
+
+      const row = document.createElement('div');
+      row.className = 'admin-match';
+      row.innerHTML = `
+        <span class="admin-team-home">${match.home}</span>
+        <div class="admin-score-wrap">
+          <input type="number" min="0" max="20"
+                 id="result_home_${match.id}"
+                 name="result_home_${match.id}"
+                 class="score-input admin-input" placeholder="–" />
+          <span class="score-sep">–</span>
+          <input type="number" min="0" max="20"
+                 id="result_away_${match.id}"
+                 name="result_away_${match.id}"
+                 class="score-input admin-input" placeholder="–" />
+        </div>
+        <span class="admin-team-away">${match.away}</span>
+      `;
+
+      wrapper.appendChild(meta);
+      wrapper.appendChild(row);
+      cardMap[match.id] = wrapper;
+      return wrapper;
+    }
+
+    function buildAllCards() {
+      MATCHES.forEach(m => buildCard(m));
+    }
+
+    // ─── RENDER (moves nodes, never recreates) ────
+    const container = document.getElementById('admin-matches-container');
+    let currentSort = 'group';
+
+    function renderMatches(sortBy) {
+      currentSort = sortBy;
+      container.innerHTML = '';
+
+      if (sortBy === 'group') {
+        const groups = [...new Set(MATCHES.map(m => m.group || ''))];
+        groups.forEach(group => {
+          appendSectionHeader(group || 'Fase de Grupos');
+          const card = document.createElement('div');
+          card.className = 'admin-group-card';
+          MATCHES.filter(m => (m.group || '') === group).forEach(m => card.appendChild(cardMap[m.id]));
+          container.appendChild(card);
+        });
+
+      } else if (sortBy === 'date') {
+        const sorted = [...MATCHES].sort((a, b) => dateNum(a.date) - dateNum(b.date));
+        let lastDate = null;
+        let card = null;
+        sorted.forEach(m => {
+          if (m.date !== lastDate) {
+            if (card) container.appendChild(card);
+            appendSectionHeader(m.date);
+            card = document.createElement('div');
+            card.className = 'admin-group-card';
+            lastDate = m.date;
+          }
+          card.appendChild(cardMap[m.id]);
+        });
+        if (card) container.appendChild(card);
+      }
+    }
+
+    function appendSectionHeader(text) {
+      const h = document.createElement('h3');
+      h.className = 'phase-title';
+      h.textContent = text;
+      container.appendChild(h);
+    }
+
+    // ─── SORT DROPDOWN ────────────────────────────
+    const SORT_LABELS = { group: 'Grupo (A, B, C…)', date: 'Por fecha' };
+
+    function toggleSortMenu() {
+      const menu = document.getElementById('sortMenu');
+      const isOpen = !menu.classList.contains('hidden');
+      menu.classList.toggle('hidden');
+      document.getElementById('sortArrow').textContent = isOpen ? '▾' : '▴';
+    }
+
+    function applySort(sortBy) {
+      document.getElementById('sortBtnLabel').textContent = SORT_LABELS[sortBy];
+      document.querySelectorAll('.sort-option').forEach(b => b.classList.toggle('active', b.dataset.sort === sortBy));
+      document.getElementById('sortMenu').classList.add('hidden');
+      document.getElementById('sortArrow').textContent = '▾';
+      renderMatches(sortBy);
+    }
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#sort-bar')) {
+        document.getElementById('sortMenu')?.classList.add('hidden');
+        const arr = document.getElementById('sortArrow');
+        if (arr) arr.textContent = '▾';
+      }
+    });
+
+    // ─── LOAD EXISTING RESULTS ────────────────────
     async function loadExistingResults() {
       try {
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getResults`);
         const data = await res.json();
         if (data.results) {
           Object.entries(data.results).forEach(([key, value]) => {
-            const input = document.querySelector(`[name="result_${key}"]`);
+            const input = document.getElementById(`result_${key}`);
             if (input && value !== '') input.value = value;
           });
         }
       } catch(e) {}
     }
 
+    // ─── SAVE ─────────────────────────────────────
     document.getElementById('resultsForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       const btn = document.getElementById('saveBtn');
@@ -246,8 +299,8 @@
 
       const results = {};
       MATCHES.forEach(match => {
-        const h = document.querySelector(`[name="result_home_${match.id}"]`).value;
-        const a = document.querySelector(`[name="result_away_${match.id}"]`).value;
+        const h = document.getElementById(`result_home_${match.id}`)?.value;
+        const a = document.getElementById(`result_away_${match.id}`)?.value;
         if (h !== '' && a !== '') {
           results[`home_${match.id}`] = h;
           results[`away_${match.id}`] = a;
